@@ -1,0 +1,200 @@
+#!/bin/sh
+# Zero-Trust Router Lockdown Script
+# This script implements zero-trust security principles on router boot
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+# Wait for network to be ready
+sleep 5
+
+echo "=== Zero-Trust Router Lockdown Initiated ==="
+
+# Log all actions
+LOG_FILE="/var/log/zero-trust-lockdown.log"
+exec 1>> $LOG_FILE 2>&1
+echo "$(date): Starting zero-trust lockdown"
+
+# ============================================
+# 1. DISABLE UNNECESSARY SERVICES
+# ============================================
+echo "Disabling unnecessary services..."
+
+# Disable Telnet (insecure)
+/etc/init.d/telnet stop 2>/dev/null || true
+/etc/init.d/telnet disable 2>/dev/null || true
+
+# Disable UPnP (security risk)
+/etc/init.d/miniupnpd stop 2>/dev/null || true
+/etc/init.d/miniupnpd disable 2>/dev/null || true
+
+# ============================================
+# 2. SECURE SSH CONFIGURATION
+# ============================================
+echo "Hardening SSH..."
+
+if [ -f /etc/config/dropbear ]; then
+    # Disable password authentication, require keys only
+    uci set dropbear.@dropbear[0].PasswordAuth='off'
+    uci set dropbear.@dropbear[0].RootPasswordAuth='off'
+    uci set dropbear.@dropbear[0].Port='2222'  # Non-standard port
+    uci commit dropbear
+    /etc/init.d/dropbear restart
+fi
+
+# ============================================
+# 3. FIREWALL HARDENING (Zero-Trust)
+# ============================================
+echo "Applying zero-trust firewall rules..."
+
+# Default deny all
+uci set firewall.@defaults[0].input='DROP'
+uci set firewall.@defaults[0].output='ACCEPT'
+uci set firewall.@defaults[0].forward='DROP'
+
+# Drop invalid packets
+uci set firewall.@defaults[0].drop_invalid='1'
+
+# Enable SYN flood protection
+uci set firewall.@defaults[0].syn_flood='1'
+
+# Disable ping from WAN (prevent reconnaissance)
+uci set firewall.@defaults[0].disable_ipv6='1'
+
+# Create VLAN 99 as isolation VLAN (no routing)
+uci set network.isolation=interface
+uci set network.isolation.type='bridge'
+uci set network.isolation.proto='static'
+uci set network.isolation.ipaddr='192.168.99.1'
+uci set network.isolation.netmask='255.255.255.0'
+uci set network.isolation.delegate='0'
+
+uci set firewall.isolation_zone=zone
+uci set firewall.isolation_zone.name='isolation'
+uci set firewall.isolation_zone.network='isolation'
+uci set firewall.isolation_zone.input='DROP'
+uci set firewall.isolation_zone.output='DROP'
+uci set firewall.isolation_zone.forward='DROP'
+
+# Only allow DNS and DHCP to isolation zone
+iptables -I INPUT -i br-isolation -p udp --dport 53 -j ACCEPT
+iptables -I INPUT -i br-isolation -p tcp --dport 53 -j ACCEPT
+iptables -I INPUT -i br-isolation -p udp --dport 67:68 -j ACCEPT
+
+uci commit firewall
+uci commit network
+
+# ============================================
+# 4. DISABLE WPS (Major Security Vulnerability)
+# ============================================
+echo "Disabling WPS..."
+if [ -f /etc/config/wireless ]; then
+    for radio in $(uci show wireless | grep "=wifi-iface" | cut -d'.' -f2 | cut -d'=' -f1); do
+        uci set wireless.$radio.wps_pushbutton='0' 2>/dev/null || true
+        uci delete wireless.$radio.wps_pushbutton 2>/dev/null || true
+    done
+    uci commit wireless
+fi
+
+# ============================================
+# 5. SECURE DNS CONFIGURATION
+# ============================================
+echo "Configuring secure DNS..."
+
+# Use DNS-over-HTTPS or secure DNS servers
+uci set dhcp.@dnsmasq[0].noresolv='1'
+uci del_list dhcp.@dnsmasq[0].server='8.8.8.8'
+uci add_list dhcp.@dnsmasq[0].server='1.1.1.1'  # Cloudflare DNS
+uci add_list dhcp.@dnsmasq[0].server='1.0.0.1'
+uci set dhcp.@dnsmasq[0].dnssec='1'  # Enable DNSSEC
+uci commit dhcp
+
+# ============================================
+# 6. RATE LIMITING & DDoS PROTECTION
+# ============================================
+echo "Enabling rate limiting..."
+
+# Limit connection tracking
+echo "32768" > /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null || true
+echo "300" > /proc/sys/net/netfilter/nf_conntrack_tcp_timeout_established 2>/dev/null || true
+
+# SYN flood protection
+echo "1" > /proc/sys/net/ipv4/tcp_syncookies 2>/dev/null || true
+echo "2048" > /proc/sys/net/ipv4/tcp_max_syn_backlog 2>/dev/null || true
+
+# ICMP rate limiting
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROP
+
+# ============================================
+# 7. LOGGING & MONITORING
+# ============================================
+echo "Enabling security logging..."
+
+# Log dropped packets
+uci set firewall.@defaults[0].log='1'
+uci set firewall.@defaults[0].log_limit='10/second'
+uci commit firewall
+
+# Enable system logging
+uci set system.@system[0].log_size='1024'
+uci set system.@system[0].log_ip='192.168.99.1'  # Send logs to host
+uci set system.@system[0].conloglevel='7'
+uci commit system
+
+# ============================================
+# 8. DISABLE UNUSED NETWORK PROTOCOLS
+# ============================================
+echo "Disabling unused protocols..."
+
+# Disable IPv6 if not needed (reduces attack surface)
+echo "1" > /proc/sys/net/ipv6/conf/all/disable_ipv6 2>/dev/null || true
+
+# Disable source routing
+echo "0" > /proc/sys/net/ipv4/conf/all/accept_source_route 2>/dev/null || true
+echo "0" > /proc/sys/net/ipv4/conf/default/accept_source_route 2>/dev/null || true
+
+# Disable ICMP redirects
+echo "0" > /proc/sys/net/ipv4/conf/all/accept_redirects 2>/dev/null || true
+echo "0" > /proc/sys/net/ipv4/conf/all/send_redirects 2>/dev/null || true
+
+# Enable reverse path filtering
+echo "1" > /proc/sys/net/ipv4/conf/all/rp_filter 2>/dev/null || true
+
+# ============================================
+# 9. WEB INTERFACE HARDENING
+# ============================================
+echo "Hardening web interface..."
+
+# Change default HTTP port
+uci set uhttpd.main.listen_http='0.0.0.0:8080'
+uci set uhttpd.main.listen_https='0.0.0.0:8443'
+
+# Enable HTTPS only
+uci set uhttpd.main.redirect_https='1'
+
+uci commit uhttpd
+/etc/init.d/uhttpd restart
+
+# ============================================
+# 10. MAC ADDRESS FILTERING (Optional - for strict zero-trust)
+# ============================================
+echo "Setting up MAC filtering framework..."
+
+# Create MAC whitelist (empty by default, must be populated)
+touch /etc/mac_whitelist
+
+# Restart services
+/etc/init.d/network restart
+/etc/init.d/firewall restart
+/etc/init.d/dnsmasq restart
+
+echo "$(date): Zero-trust lockdown complete"
+echo "=== Zero-Trust Router Lockdown Complete ==="
+
+# Start provisioning web server
+if [ -d /www_provision ]; then
+    echo "Starting provisioning interface..."
+    /www_provision/cgi-bin/setup &
+fi
+
+exit 0
