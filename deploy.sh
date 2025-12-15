@@ -119,11 +119,19 @@ apply_configuration() {
         chmod +x /www/cgi-bin/unlock-wan.sh
         
         # Apply network configuration
-        cat /tmp/router-config.uci | while read line; do
-            if echo "$line" | grep -q "^config\|^option\|^list"; then
-                eval "uci $line"
+        # Process UCI commands safely without eval
+        while IFS= read -r line; do
+            # Skip empty lines and comments
+            if [ -z "$line" ] || echo "$line" | grep -q "^#"; then
+                continue
             fi
-        done
+            
+            # Only process valid UCI command lines
+            if echo "$line" | grep -qE "^(config|option|list)"; then
+                # Execute uci command directly without eval
+                uci $line 2>/dev/null || true
+            fi
+        done < /tmp/router-config.uci
         
         # Commit all changes
         uci commit

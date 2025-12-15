@@ -10,7 +10,7 @@ HASH=$(echo "$POST_DATA" | grep -o '"hash":"[^"]*"' | cut -d'"' -f4)
 
 # Valid password hash (SHA-256)
 # Default password: "unlock123" - CHANGE THIS IN PRODUCTION
-VALID_HASH="6b89d6b85dcb29a19e8e45f5e1c3d45a30d6e4e8e1e4c5e6d9d4f5e6a7b8c9d0"
+VALID_HASH="c2a246816867ccd2d5729dec3dc2db634b6a67db069aca843964899b684ee797"
 
 # Log unlock attempt
 logger -t zero-boot "WAN unlock attempt with hash: ${HASH:0:16}..."
@@ -23,8 +23,18 @@ if [ "$HASH" = "$VALID_HASH" ]; then
     uci set network.wan.disabled='0'
     uci set network.wan6.disabled='0'
     
-    # Enable forwarding from LAN to WAN
-    uci set firewall.@forwarding[0].enabled='1'
+    # Enable forwarding from LAN to WAN (find the correct rule)
+    # Try to find the LAN to WAN forwarding rule
+    FORWARD_INDEX=$(uci show firewall | grep "forwarding\[" | grep -m1 "src='lan'" | sed -n "s/.*forwarding\[\([0-9]*\)\].*/\1/p")
+    if [ -n "$FORWARD_INDEX" ]; then
+        uci set firewall.@forwarding[$FORWARD_INDEX].enabled='1'
+    else
+        # If no forwarding rule exists, create one
+        uci add firewall forwarding
+        uci set firewall.@forwarding[-1].src='lan'
+        uci set firewall.@forwarding[-1].dest='wan'
+        uci set firewall.@forwarding[-1].enabled='1'
+    fi
     
     # Commit changes
     uci commit network
