@@ -118,23 +118,27 @@ apply_configuration() {
         # Make unlock script executable
         chmod +x /www/cgi-bin/unlock-wan.sh
         
-        # Apply network configuration
-        # Process UCI commands safely without eval
-        while IFS= read -r line; do
-            # Skip empty lines and comments
-            if [ -z "$line" ] || echo "$line" | grep -q "^#"; then
-                continue
-            fi
-            
-            # Only process valid UCI command lines
-            if echo "$line" | grep -qE "^(config|option|list)"; then
-                # Execute uci command directly without eval
-                uci $line 2>/dev/null || true
-            fi
-        done < /tmp/router-config.uci
+        # Apply Zero-Boot specific configuration
+        # Set WAN to disabled
+        uci set network.wan.disabled='1' 2>/dev/null || true
+        uci set network.wan6.disabled='1' 2>/dev/null || true
+        
+        # Ensure LAN-to-WAN forwarding is disabled initially
+        # Find or create the forwarding rule
+        FORWARD_INDEX=$(uci show firewall | grep "forwarding\[" | grep -m1 "src='lan'" | sed -n "s/.*forwarding\[\([0-9]*\)\].*/\1/p")
+        if [ -n "$FORWARD_INDEX" ]; then
+            uci set firewall.@forwarding[$FORWARD_INDEX].enabled='0'
+        else
+            # Create forwarding rule (disabled by default)
+            uci add firewall forwarding
+            uci set firewall.@forwarding[-1].src='lan'
+            uci set firewall.@forwarding[-1].dest='wan'
+            uci set firewall.@forwarding[-1].enabled='0'
+        fi
         
         # Commit all changes
-        uci commit
+        uci commit network
+        uci commit firewall
         
         # Restart services
         /etc/init.d/network restart

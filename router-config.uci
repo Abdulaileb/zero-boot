@@ -1,5 +1,12 @@
-# Zero-Boot Router Configuration
+# Zero-Boot Router Configuration Reference
 # This configuration implements automatic lockdown with WAN disabled by default
+# 
+# NOTE: This is a REFERENCE configuration showing the complete desired state.
+# The deploy.sh script applies the critical security settings automatically.
+# For advanced users, you can manually import this configuration using:
+#   uci import network < router-config.uci
+#   uci import firewall < router-config.uci
+# Or apply settings manually using the uci command.
 
 # Network configuration with VLAN segmentation
 config interface 'loopback'
