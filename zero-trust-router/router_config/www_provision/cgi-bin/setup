@@ -37,11 +37,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
         exit 1
     fi
     
+    # Server-side password validation (min 12 chars)
+    if [ ${#ADMIN_PASS} -lt 12 ]; then
+        echo "<html><body><h1>Error</h1><p>Admin password must be at least 12 characters.</p></body></html>"
+        exit 1
+    fi
+    
+    # Validate WiFi password if provided (min 16 chars)
+    if [ -n "$WIFI_PASS" ] && [ ${#WIFI_PASS} -lt 16 ]; then
+        echo "<html><body><h1>Error</h1><p>WiFi password must be at least 16 characters.</p></body></html>"
+        exit 1
+    fi
+    
     # Apply configurations
     echo "Applying zero-trust configuration..." >> $LOG_FILE
     
-    # Set admin password securely using chpasswd to avoid process exposure
-    echo "root:$ADMIN_PASS" | chpasswd >> $LOG_FILE 2>&1
+    # Set admin password securely using heredoc to avoid process exposure
+    chpasswd >> $LOG_FILE 2>&1 << EOF
+root:$ADMIN_PASS
+EOF
     
     # Configure WiFi if provided
     if [ -n "$WIFI_SSID" ] && [ -n "$WIFI_PASS" ]; then
@@ -62,16 +76,25 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     
     # Add trusted MAC to whitelist
     if [ -n "$TRUSTED_MAC" ]; then
-        echo "Adding trusted MAC: $TRUSTED_MAC" >> $LOG_FILE
-        echo "$TRUSTED_MAC" >> /etc/mac_whitelist
-        
-        # Create firewall rule for trusted device
-        uci add firewall rule
-        uci set firewall.@rule[-1].name="Allow_Trusted_$TRUSTED_MAC"
-        uci set firewall.@rule[-1].src='lan'
-        uci set firewall.@rule[-1].src_mac="$TRUSTED_MAC"
-        uci set firewall.@rule[-1].target='ACCEPT'
-        uci commit firewall
+        # Validate MAC address format (XX:XX:XX:XX:XX:XX)
+        if echo "$TRUSTED_MAC" | grep -qE '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'; then
+            echo "Adding trusted MAC: $TRUSTED_MAC" >> $LOG_FILE
+            echo "$TRUSTED_MAC" >> /etc/mac_whitelist
+            
+            # Create firewall rule for trusted device
+            # Sanitize MAC for use in rule name (replace colons with underscores)
+            MAC_SAFE=$(echo "$TRUSTED_MAC" | tr ':' '_')
+            uci add firewall rule
+            uci set firewall.@rule[-1].name="Allow_Trusted_$MAC_SAFE"
+            uci set firewall.@rule[-1].src='lan'
+            uci set firewall.@rule[-1].src_mac="$TRUSTED_MAC"
+            uci set firewall.@rule[-1].target='ACCEPT'
+            uci commit firewall
+        else
+            echo "ERROR: Invalid MAC address format: $TRUSTED_MAC" >> $LOG_FILE
+            echo "<html><body><h1>Error</h1><p>Invalid MAC address format. Use XX:XX:XX:XX:XX:XX</p></body></html>"
+            exit 1
+        fi
     fi
     
     # Apply security level

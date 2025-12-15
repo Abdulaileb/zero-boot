@@ -115,7 +115,10 @@ echo "Configuring secure DNS..."
 
 # Use DNS-over-HTTPS or secure DNS servers
 uci set dhcp.@dnsmasq[0].noresolv='1'
-uci del_list dhcp.@dnsmasq[0].server='8.8.8.8'
+# Remove default DNS servers if they exist
+uci del_list dhcp.@dnsmasq[0].server='8.8.8.8' 2>/dev/null || true
+uci del_list dhcp.@dnsmasq[0].server='8.8.4.4' 2>/dev/null || true
+# Add secure DNS servers
 uci add_list dhcp.@dnsmasq[0].server='1.1.1.1'  # Cloudflare DNS
 uci add_list dhcp.@dnsmasq[0].server='1.0.0.1'
 uci set dhcp.@dnsmasq[0].dnssec='1'  # Enable DNSSEC
