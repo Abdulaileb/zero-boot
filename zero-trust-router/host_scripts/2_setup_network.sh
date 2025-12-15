@@ -37,7 +37,8 @@ fi
 # Configure bridge
 ip link set $BRIDGE_NAME up
 ip addr flush dev $BRIDGE_NAME 2>/dev/null || true
-ip addr add ${BRIDGE_IP}/${BRIDGE_NETMASK##*.*.*.} dev $BRIDGE_NAME
+# Use direct CIDR notation for clarity
+ip addr add ${BRIDGE_IP}/24 dev $BRIDGE_NAME
 
 # Create VLAN 99 on bridge (isolation VLAN for zero-trust)
 echo "Creating VLAN $VLAN_ID for isolation..."

@@ -48,7 +48,8 @@ fi
 TAP_IFACE="tap-${VM_NAME}"
 if ! ip link show $TAP_IFACE &> /dev/null; then
     echo "Creating TAP interface: $TAP_IFACE"
-    ip tuntap add dev $TAP_IFACE mode tap user $(whoami)
+    # When running as root, omit the user parameter for better compatibility
+    ip tuntap add dev $TAP_IFACE mode tap
     ip link set $TAP_IFACE up
     brctl addif $BRIDGE_NAME $TAP_IFACE
 fi

@@ -18,12 +18,12 @@ urldecode() {
 if [ "$REQUEST_METHOD" = "POST" ]; then
     read POST_DATA
     
-    # Extract parameters
-    ADMIN_PASS=$(echo "$POST_DATA" | grep -oP "admin_password=\K[^&]*" | head -1)
-    WIFI_SSID=$(echo "$POST_DATA" | grep -oP "wifi_ssid=\K[^&]*" | head -1)
-    WIFI_PASS=$(echo "$POST_DATA" | grep -oP "wifi_password=\K[^&]*" | head -1)
-    TRUSTED_MAC=$(echo "$POST_DATA" | grep -oP "trusted_mac=\K[^&]*" | head -1)
-    SECURITY_LEVEL=$(echo "$POST_DATA" | grep -oP "security_level=\K[^&]*" | head -1)
+    # Extract parameters using POSIX-compliant sed instead of grep -P
+    ADMIN_PASS=$(echo "$POST_DATA" | sed -n 's/.*admin_password=\([^&]*\).*/\1/p')
+    WIFI_SSID=$(echo "$POST_DATA" | sed -n 's/.*wifi_ssid=\([^&]*\).*/\1/p')
+    WIFI_PASS=$(echo "$POST_DATA" | sed -n 's/.*wifi_password=\([^&]*\).*/\1/p')
+    TRUSTED_MAC=$(echo "$POST_DATA" | sed -n 's/.*trusted_mac=\([^&]*\).*/\1/p')
+    SECURITY_LEVEL=$(echo "$POST_DATA" | sed -n 's/.*security_level=\([^&]*\).*/\1/p')
     
     # Decode values
     ADMIN_PASS=$(urldecode "$ADMIN_PASS")
@@ -40,8 +40,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     # Apply configurations
     echo "Applying zero-trust configuration..." >> $LOG_FILE
     
-    # Set admin password
-    (echo "$ADMIN_PASS"; echo "$ADMIN_PASS") | passwd root >> $LOG_FILE 2>&1
+    # Set admin password securely using chpasswd to avoid process exposure
+    echo "root:$ADMIN_PASS" | chpasswd >> $LOG_FILE 2>&1
     
     # Configure WiFi if provided
     if [ -n "$WIFI_SSID" ] && [ -n "$WIFI_PASS" ]; then

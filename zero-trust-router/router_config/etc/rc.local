@@ -33,10 +33,23 @@ echo "Disabling unnecessary services..."
 echo "Hardening SSH..."
 
 if [ -f /etc/config/dropbear ]; then
-    # Disable password authentication, require keys only
-    uci set dropbear.@dropbear[0].PasswordAuth='off'
-    uci set dropbear.@dropbear[0].RootPasswordAuth='off'
-    uci set dropbear.@dropbear[0].Port='2222'  # Non-standard port
+    # NOTE: Disabling password auth requires SSH keys to be configured first
+    # During initial setup, password auth remains enabled until keys are added
+    # After adding keys via web interface, password auth will be disabled
+    
+    # Change to non-standard port
+    uci set dropbear.@dropbear[0].Port='2222'
+    
+    # Only disable password auth if SSH keys exist
+    if [ -s /etc/dropbear/authorized_keys ] || [ -s /root/.ssh/authorized_keys ]; then
+        uci set dropbear.@dropbear[0].PasswordAuth='off'
+        uci set dropbear.@dropbear[0].RootPasswordAuth='off'
+        echo "SSH keys found, password authentication disabled"
+    else
+        echo "WARNING: No SSH keys configured, password authentication remains enabled"
+        echo "Add SSH keys to /etc/dropbear/authorized_keys to enable key-only auth"
+    fi
+    
     uci commit dropbear
     /etc/init.d/dropbear restart
 fi
@@ -191,10 +204,10 @@ touch /etc/mac_whitelist
 echo "$(date): Zero-trust lockdown complete"
 echo "=== Zero-Trust Router Lockdown Complete ==="
 
-# Start provisioning web server
+# Provisioning web interface is available at /www_provision
+# It will be served by uhttpd, not executed as a background process
 if [ -d /www_provision ]; then
-    echo "Starting provisioning interface..."
-    /www_provision/cgi-bin/setup &
+    echo "Provisioning interface available at http://router-ip:8080"
 fi
 
 exit 0

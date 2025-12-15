@@ -36,6 +36,10 @@ copy_files() {
     local dst=$2
     
     echo "Copying $src to router..."
+    # WARNING: StrictHostKeyChecking=no disables host key verification
+    # This is acceptable for lab environments but should not be used in production
+    # For production use, properly manage SSH known_hosts file
+    echo "  (Using relaxed SSH settings for lab environment)"
     scp -P $ROUTER_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         -r "$src" ${ROUTER_USER}@${ROUTER_IP}:"$dst" 2>&1 | grep -v "Warning: Permanently added"
     
@@ -52,6 +56,7 @@ copy_files() {
 exec_remote() {
     local cmd=$1
     
+    # Using relaxed SSH settings for lab environment (not recommended for production)
     ssh -p $ROUTER_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
         ${ROUTER_USER}@${ROUTER_IP} "$cmd" 2>&1 | grep -v "Warning: Permanently added"
 }
