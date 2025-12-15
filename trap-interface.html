@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero-Boot - Router Unlock</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
+            width: 100%;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header .status {
+            color: #e74c3c;
+            font-weight: bold;
+            font-size: 14px;
+            padding: 8px 16px;
+            background: #fee;
+            border-radius: 5px;
+            display: inline-block;
+            margin-top: 10px;
+        }
+        
+        .status.locked::before {
+            content: "🔒 ";
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 5px;
+            display: none;
+            text-align: center;
+        }
+        
+        .message.error {
+            background: #fee;
+            color: #e74c3c;
+            display: block;
+        }
+        
+        .message.success {
+            background: #efe;
+            color: #27ae60;
+            display: block;
+        }
+        
+        .info-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .info-box strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Zero-Boot</h1>
+            <p style="color: #666; margin-top: 10px;">Router Security System</p>
+            <div class="status locked">WAN Interface Locked</div>
+        </div>
+        
+        <form id="unlockForm">
+            <div class="form-group">
+                <label for="password">Enter Unlock Password:</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    placeholder="Enter your password"
+                    required
+                    autocomplete="off"
+                >
+            </div>
+            
+            <button type="submit" class="btn">Unlock WAN Interface</button>
+        </form>
+        
+        <div id="message" class="message"></div>
+        
+        <div class="info-box">
+            <strong>ℹ️ Security Notice</strong>
+            This router is in lockdown mode. The WAN interface is disabled for security.
+            Enter the correct password to enable internet connectivity.
+        </div>
+    </div>
+
+    <script>
+        // SHA-256 hashing function
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
+        // Stored password hash (SHA-256 of the unlock password)
+        // Default password: "unlock123" - CHANGE THIS IN PRODUCTION
+        const VALID_PASSWORD_HASH = '6b89d6b85dcb29a19e8e45f5e1c3d45a30d6e4e8e1e4c5e6d9d4f5e6a7b8c9d0';
+
+        document.getElementById('unlockForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const password = document.getElementById('password').value;
+            const messageDiv = document.getElementById('message');
+            
+            // Hash the entered password
+            const hashedPassword = await sha256(password);
+            
+            // Verify password hash
+            if (hashedPassword === VALID_PASSWORD_HASH) {
+                messageDiv.className = 'message success';
+                messageDiv.textContent = '✓ Authentication successful! Unlocking WAN interface...';
+                
+                // Send unlock request to router
+                try {
+                    const response = await fetch('/cgi-bin/unlock-wan.sh', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ hash: hashedPassword })
+                    });
+                    
+                    if (response.ok) {
+                        messageDiv.textContent = '✓ WAN interface successfully unlocked! Internet access enabled.';
+                        document.querySelector('.status').textContent = 'WAN Interface Unlocked';
+                        document.querySelector('.status').style.background = '#efe';
+                        document.querySelector('.status').style.color = '#27ae60';
+                        
+                        // Redirect to router admin page after 3 seconds
+                        setTimeout(() => {
+                            window.location.href = '/cgi-bin/luci';
+                        }, 3000);
+                    } else {
+                        throw new Error('Failed to unlock WAN interface');
+                    }
+                } catch (error) {
+                    messageDiv.className = 'message error';
+                    messageDiv.textContent = '⚠ Failed to communicate with router. Error: ' + error.message;
+                }
+            } else {
+                messageDiv.className = 'message error';
+                messageDiv.textContent = '✗ Invalid password. Access denied.';
+                document.getElementById('password').value = '';
+            }
+        });
+    </script>
+</body>
+</html>

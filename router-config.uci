@@ -1,0 +1,105 @@
+# Zero-Boot Router Configuration
+# This configuration implements automatic lockdown with WAN disabled by default
+
+# Network configuration with VLAN segmentation
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+# LAN interface - Internal trusted network
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ipaddr '192.168.1.1'
+	option netmask '255.255.255.0'
+	option ip6assign '60'
+
+# WAN interface - DISABLED BY DEFAULT (Security Lockdown)
+config interface 'wan'
+	option device 'eth1'
+	option proto 'static'
+	option disabled '1'
+	option ipaddr '0.0.0.0'
+	option netmask '255.255.255.0'
+
+# WAN6 interface - DISABLED BY DEFAULT
+config interface 'wan6'
+	option device 'eth1'
+	option proto 'dhcpv6'
+	option disabled '1'
+
+# VLAN Configuration for Network Isolation
+# VLAN 1 - Management VLAN (Trap Interface)
+config switch
+	option name 'switch0'
+	option ports '0 1 2 3 6'
+	option blinkrate '2'
+
+config switch_vlan
+	option device 'switch0'
+	option vlan '1'
+	option ports '0 1 2 3 6t'
+	option description 'Management VLAN'
+
+# VLAN 10 - Isolated Guest Network
+config switch_vlan
+	option device 'switch0'
+	option vlan '10'
+	option ports '4 6t'
+	option description 'Isolated Guest VLAN'
+
+# VLAN 99 - Quarantine VLAN (for unauthorized devices)
+config switch_vlan
+	option device 'switch0'
+	option vlan '99'
+	option ports '6t'
+	option description 'Quarantine VLAN'
+
+# Firewall zones for VLAN isolation
+config zone
+	option name 'lan'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'ACCEPT'
+	option network 'lan'
+
+config zone
+	option name 'wan'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+	option masq '1'
+	option mtu_fix '1'
+	option network 'wan wan6'
+
+config zone
+	option name 'guest'
+	option input 'REJECT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+	option network 'guest'
+
+# Default deny forwarding between zones (security isolation)
+config forwarding
+	option src 'lan'
+	option dest 'wan'
+	option enabled '0'
+
+# DHCP Server Configuration
+config dhcp 'lan'
+	option interface 'lan'
+	option start '100'
+	option limit '150'
+	option leasetime '12h'
+	option dhcpv4 'server'
+	option dhcpv6 'server'
+	option ra 'server'
+	list ra_flags 'managed-config'
+	list ra_flags 'other-config'
+
+# Disable DHCP on WAN (security measure)
+config dhcp 'wan'
+	option interface 'wan'
+	option ignore '1'
