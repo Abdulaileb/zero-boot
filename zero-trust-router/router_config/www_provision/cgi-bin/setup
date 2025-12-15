@@ -1,0 +1,221 @@
+#!/bin/sh
+# Zero-Trust Router Setup CGI Script
+# Processes configuration from the web interface
+
+echo "Content-Type: text/html"
+echo ""
+
+# Log setup attempts
+LOG_FILE="/var/log/setup.log"
+echo "$(date): Setup initiated from $REMOTE_ADDR" >> $LOG_FILE
+
+# Function to URL decode
+urldecode() {
+    echo -e "$(echo "$1" | sed 's/+/ /g; s/%\([0-9A-F][0-9A-F]\)/\\x\1/g')"
+}
+
+# Parse POST data
+if [ "$REQUEST_METHOD" = "POST" ]; then
+    read POST_DATA
+    
+    # Extract parameters using POSIX-compliant sed instead of grep -P
+    ADMIN_PASS=$(echo "$POST_DATA" | sed -n 's/.*admin_password=\([^&]*\).*/\1/p')
+    WIFI_SSID=$(echo "$POST_DATA" | sed -n 's/.*wifi_ssid=\([^&]*\).*/\1/p')
+    WIFI_PASS=$(echo "$POST_DATA" | sed -n 's/.*wifi_password=\([^&]*\).*/\1/p')
+    TRUSTED_MAC=$(echo "$POST_DATA" | sed -n 's/.*trusted_mac=\([^&]*\).*/\1/p')
+    SECURITY_LEVEL=$(echo "$POST_DATA" | sed -n 's/.*security_level=\([^&]*\).*/\1/p')
+    
+    # Decode values
+    ADMIN_PASS=$(urldecode "$ADMIN_PASS")
+    WIFI_SSID=$(urldecode "$WIFI_SSID")
+    WIFI_PASS=$(urldecode "$WIFI_PASS")
+    TRUSTED_MAC=$(urldecode "$TRUSTED_MAC")
+    
+    # Validate inputs
+    if [ -z "$ADMIN_PASS" ]; then
+        echo "<html><body><h1>Error</h1><p>Admin password is required.</p></body></html>"
+        exit 1
+    fi
+    
+    # Server-side password validation (min 12 chars)
+    if [ ${#ADMIN_PASS} -lt 12 ]; then
+        echo "<html><body><h1>Error</h1><p>Admin password must be at least 12 characters.</p></body></html>"
+        exit 1
+    fi
+    
+    # Validate WiFi password if provided (min 16 chars)
+    if [ -n "$WIFI_PASS" ] && [ ${#WIFI_PASS} -lt 16 ]; then
+        echo "<html><body><h1>Error</h1><p>WiFi password must be at least 16 characters.</p></body></html>"
+        exit 1
+    fi
+    
+    # Apply configurations
+    echo "Applying zero-trust configuration..." >> $LOG_FILE
+    
+    # Set admin password securely using heredoc to avoid process exposure
+    chpasswd >> $LOG_FILE 2>&1 << EOF
+root:$ADMIN_PASS
+EOF
+    
+    # Configure WiFi if provided
+    if [ -n "$WIFI_SSID" ] && [ -n "$WIFI_PASS" ]; then
+        echo "Configuring WiFi: $WIFI_SSID" >> $LOG_FILE
+        
+        uci set wireless.radio0.disabled='0'
+        uci set wireless.@wifi-iface[0].ssid="$WIFI_SSID"
+        uci set wireless.@wifi-iface[0].encryption='psk2+ccmp'  # WPA2
+        uci set wireless.@wifi-iface[0].key="$WIFI_PASS"
+        uci set wireless.@wifi-iface[0].disabled='0'
+        
+        # Try to use WPA3 if available
+        uci set wireless.@wifi-iface[0].encryption='sae' 2>/dev/null || true
+        
+        uci commit wireless
+        wifi reload >> $LOG_FILE 2>&1
+    fi
+    
+    # Add trusted MAC to whitelist
+    if [ -n "$TRUSTED_MAC" ]; then
+        # Validate MAC address format (XX:XX:XX:XX:XX:XX)
+        if echo "$TRUSTED_MAC" | grep -qE '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'; then
+            echo "Adding trusted MAC: $TRUSTED_MAC" >> $LOG_FILE
+            echo "$TRUSTED_MAC" >> /etc/mac_whitelist
+            
+            # Create firewall rule for trusted device
+            # Sanitize MAC for use in rule name (replace colons with underscores)
+            MAC_SAFE=$(echo "$TRUSTED_MAC" | tr ':' '_')
+            uci add firewall rule
+            uci set firewall.@rule[-1].name="Allow_Trusted_$MAC_SAFE"
+            uci set firewall.@rule[-1].src='lan'
+            uci set firewall.@rule[-1].src_mac="$TRUSTED_MAC"
+            uci set firewall.@rule[-1].target='ACCEPT'
+            uci commit firewall
+        else
+            echo "ERROR: Invalid MAC address format: $TRUSTED_MAC" >> $LOG_FILE
+            echo "<html><body><h1>Error</h1><p>Invalid MAC address format. Use XX:XX:XX:XX:XX:XX</p></body></html>"
+            exit 1
+        fi
+    fi
+    
+    # Apply security level
+    case "$SECURITY_LEVEL" in
+        maximum)
+            echo "Applying maximum security level" >> $LOG_FILE
+            # Enable strict MAC filtering
+            uci set wireless.@wifi-iface[0].macfilter='allow'
+            if [ -n "$TRUSTED_MAC" ]; then
+                uci add_list wireless.@wifi-iface[0].maclist="$TRUSTED_MAC"
+            fi
+            uci commit wireless
+            ;;
+        high)
+            echo "Applying high security level" >> $LOG_FILE
+            # Standard zero-trust configuration (already applied in rc.local)
+            ;;
+        medium)
+            echo "Applying medium security level" >> $LOG_FILE
+            # Slightly relaxed rules
+            uci set firewall.@defaults[0].input='ACCEPT'
+            uci commit firewall
+            ;;
+    esac
+    
+    # Restart services
+    /etc/init.d/firewall restart >> $LOG_FILE 2>&1
+    
+    echo "$(date): Setup completed successfully" >> $LOG_FILE
+    
+    # Return success page
+    cat <<EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Complete</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #10b981;
+            margin-bottom: 20px;
+        }
+        .success-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #4b5563;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .info-box {
+            background: #f3f4f6;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .info-box h3 {
+            color: #374151;
+            margin-bottom: 10px;
+        }
+        .info-item {
+            color: #6b7280;
+            font-size: 14px;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>Configuration Applied!</h1>
+        <p>Your zero-trust router has been successfully configured with enhanced security settings.</p>
+        
+        <div class="info-box">
+            <h3>Next Steps:</h3>
+            <div class="info-item">• Router will reboot in 10 seconds</div>
+            <div class="info-item">• Connect to: <strong>$WIFI_SSID</strong></div>
+            <div class="info-item">• Access admin panel: <strong>https://192.168.1.1:8443</strong></div>
+            <div class="info-item">• SSH access: <strong>port 2222</strong></div>
+        </div>
+        
+        <p style="margin-top: 20px; font-size: 12px; color: #9ca3af;">
+            All security features are now active and protecting your network.
+        </p>
+    </div>
+    
+    <script>
+        setTimeout(function() {
+            window.location.href = '/';
+        }, 10000);
+    </script>
+</body>
+</html>
+EOF
+    
+    # Schedule reboot
+    (sleep 10; reboot) &
+    
+else
+    # GET request - return error
+    echo "<html><body><h1>Error</h1><p>Invalid request method.</p></body></html>"
+fi
+
+exit 0

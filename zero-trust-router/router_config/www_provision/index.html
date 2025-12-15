@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero-Trust Router Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .security-badge {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .status-section {
+            background: #f9fafb;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 5px;
+        }
+        
+        .status-section h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .status-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status-label {
+            color: #4b5563;
+            font-size: 14px;
+        }
+        
+        .status-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .status-enabled {
+            color: #10b981;
+        }
+        
+        .status-disabled {
+            color: #ef4444;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            color: #374151;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 5px;
+        }
+        
+        .warning-box p {
+            color: #92400e;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .info-text {
+            color: #6b7280;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <span class="security-badge">🔒 ZERO-TRUST ENABLED</span>
+        <h1>Zero-Trust Router</h1>
+        <p class="subtitle">Security-First Configuration Portal</p>
+        
+        <div class="status-section">
+            <h3>🛡️ Security Status</h3>
+            <div class="status-item">
+                <span class="status-label">Telnet</span>
+                <span class="status-value status-disabled">DISABLED ✓</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">UPnP</span>
+                <span class="status-value status-disabled">DISABLED ✓</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">WPS</span>
+                <span class="status-value status-disabled">DISABLED ✓</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">SSH Port</span>
+                <span class="status-value">2222 (Non-standard) ✓</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">DNSSEC</span>
+                <span class="status-value status-enabled">ENABLED ✓</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Isolation VLAN</span>
+                <span class="status-value status-enabled">VLAN 99 ✓</span>
+            </div>
+        </div>
+        
+        <div class="warning-box">
+            <p><strong>⚠️ Initial Setup Required:</strong> This router is in lockdown mode. Configure your trusted devices and security settings before regular use.</p>
+        </div>
+        
+        <form id="setupForm" action="/cgi-bin/setup" method="POST">
+            <div class="form-group">
+                <label for="admin_password">Admin Password</label>
+                <input type="password" id="admin_password" name="admin_password" required 
+                       placeholder="Enter secure password (min 12 chars)">
+                <p class="info-text">Use a strong password with uppercase, lowercase, numbers, and symbols.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="wifi_ssid">WiFi Network Name (SSID)</label>
+                <input type="text" id="wifi_ssid" name="wifi_ssid" 
+                       placeholder="ZeroTrust-Network">
+                <p class="info-text">Your wireless network identifier.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="wifi_password">WiFi Password</label>
+                <input type="password" id="wifi_password" name="wifi_password" 
+                       placeholder="Enter WiFi password (min 16 chars)">
+                <p class="info-text">WPA3 encryption will be used when available.</p>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="form-group">
+                <label for="trusted_mac">Trusted Device MAC Address (Optional)</label>
+                <input type="text" id="trusted_mac" name="trusted_mac" 
+                       placeholder="AA:BB:CC:DD:EE:FF">
+                <p class="info-text">Add a trusted device to the whitelist. You can add more later.</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="security_level">Security Level</label>
+                <select id="security_level" name="security_level">
+                    <option value="maximum">Maximum (Recommended) - Strict filtering</option>
+                    <option value="high">High - Balanced security</option>
+                    <option value="medium">Medium - Standard protection</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn">🚀 Apply Configuration</button>
+        </form>
+        
+        <div class="divider"></div>
+        
+        <div style="text-align: center; color: #9ca3af; font-size: 12px;">
+            <p>Zero-Trust Router Lab © 2024</p>
+            <p>Protected by automated lockdown procedures</p>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('setupForm').addEventListener('submit', function(e) {
+            const password = document.getElementById('admin_password').value;
+            const wifiPassword = document.getElementById('wifi_password').value;
+            
+            if (password.length < 12) {
+                alert('Admin password must be at least 12 characters long.');
+                e.preventDefault();
+                return false;
+            }
+            
+            if (wifiPassword && wifiPassword.length < 16) {
+                alert('WiFi password must be at least 16 characters long.');
+                e.preventDefault();
+                return false;
+            }
+            
+            return true;
+        });
+    </script>
+</body>
+</html>
