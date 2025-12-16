@@ -27,3 +27,8 @@ echo "Network Ready."
 # brctl addbr vlan-bridge
 # ip link set lan-bridge up
 # ip link set vlan-bridge up
+
+
+# Setup for auto create data
+mkdir -p /www_provision/cgi-bin
+chmod +x /www_provision/cgi-bin
