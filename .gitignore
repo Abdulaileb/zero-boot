@@ -1,0 +1,34 @@
+# Temporary files
+/tmp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Backup files
+backups/
+*.tar.gz
+*.bak
+
+# Configuration backups
+router-backup-*
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# User-specific configuration
+.env
+config.local
+
+# Test files (if added later)
+test-results/
+coverage/
