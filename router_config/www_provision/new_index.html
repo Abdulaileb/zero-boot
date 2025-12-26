@@ -1,0 +1,161 @@
+root@OpenWrt:/# cat www_provision/index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zero-Trust Initialization</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      width: 100%;
+      max-width: 480px;
+      padding: 40px;
+    }
+    .header { text-align: center; margin-bottom: 30px; }
+    .lock-icon { font-size: 48px; margin-bottom: 15px; }
+    h1 { color: #333; font-size: 24px; margin-bottom: 10px; }
+    .alert {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      color: #856404;
+      font-size: 13px;
+      margin-bottom: 25px;
+      border-radius: 4px;
+    }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; color: #555; font-weight: 600; }
+    input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+    input:focus { outline: none; border-color: #667eea; }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .message { margin-top: 20px; padding: 12px; border-radius: 6px; text-align: center; display: none; }
+    .message.error { background: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="lock-icon">🔒</div>
+      <h1>Device Initialization</h1>
+      <p style="color:#666;">Set your Master Credentials</p>
+    </div>
+
+    <div class="alert">
+      <strong>⚠️ WAN Interface Isolated</strong><br>
+      Internet access is disabled. Configure admin account to unlock.
+    </div>
+
+    <form id="setupForm" action="/cgi-bin/setup" method="POST">
+      <div class="form-group">
+        <label for="username">Admin Username</label>
+        <input type="text" id="username" name="username" placeholder="e.g., admin" required minlength="4" />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Master Password</label>
+        <input type="password" id="password" name="password" placeholder="Min. 8 characters" required minlength="8" />
+      </div>
+
+      <div class="form-group">
+        <label for="password_confirm">Confirm Password</label>
+        <input type="password" id="password_confirm" placeholder="Repeat password" required minlength="8" />
+      </div>
+
+      <button type="submit">Secure & Activate</button>
+      <div id="message" class="message"></div>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('setupForm').addEventListener('submit', function(e) {
+      const user = document.getElementById('username').value.trim();
+      const pass = document.getElementById('password').value;
+      const conf = document.getElementById('password_confirm').value;
+      const msg = document.getElementById('message');
+
+      if (user.length < 4 || /\s/.test(user)) {
+        e.preventDefault();
+        msg.textContent = 'Username must be 4+ characters, no spaces.';
+        msg.className = 'message error';
+        msg.style.display = 'block';
+        return;
+      }
+
+      if (pass !== conf) {
+        e.preventDefault();
+        msg.textContent = 'Passwords do not match.';
+        msg.className = 'message error';
+        msg.style.display = 'block';
+        return;
+      }
+
+      if (pass.length < 8) {
+        e.preventDefault();
+        msg.textContent = 'Password must be at least 8 characters.';
+        msg.className = 'message error';
+        msg.style.display = 'block';
+        return;
+      }
+    });
+  </script>
+</body>
+</html>
+root@OpenWrt:/#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
